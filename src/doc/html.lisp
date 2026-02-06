@@ -100,6 +100,8 @@ summary{cursor:pointer;font-weight:600;padding:6px 0}
 .methods-item{margin-top:5px}
 .instances-list{margin:8px 0 12px 20px}
 .instances-item{margin:4px 0}
+.constructors-list{margin:8px 0 12px 20px}
+.constructors-list li{margin:4px 0}
 .symbol-search{margin-top:10px;position:relative}
 .symbol-search input{
   width:100%;
@@ -417,20 +419,30 @@ summary{cursor:pointer;font-weight:600;padding:6px 0}
       (:raw (write-object-body backend object)))))
 
 (defmethod write-object-body ((backend html-backend) (object coalton-type))
-  (let ((ctor-html
-          (loop :for ctor :in (coalton-type-constructors object)
-                :for ctor-name := (tc:constructor-entry-name ctor)
-                :for ctor-source-name := (lookup-constructor-source-name ctor-name)
-                :for ctor-type := (tc:lookup-value-type entry:*global-environment* ctor-name)
-                :for ctor-docstring := (source:docstring ctor)
-                :collect (with-html-string
-                           (when (not (null ctor-docstring))
-                             (:span :class "docstring" " - ~A" ctor-docstring))))))
-    (with-html-string
-      (when ctor-html
-        (:raw (join ctor-html "")))
-      (:raw (doc-html object))
-      (:raw (instances-html object)))))
+  (with-html-string
+    (tc:with-pprint-variable-context ()
+      (let ((ctors (coalton-type-constructors object)))
+        (when ctors
+          (:ul :class "constructors-list"
+           (dolist (ctor ctors)
+             (let* ((ctor-name (tc:constructor-entry-name ctor))
+                    (ctor-source-name (lookup-constructor-source-name ctor-name))
+                    (ctor-type (tc:lookup-value-type entry:*global-environment* ctor-name))
+                    (ctor-docstring (source:docstring ctor))
+                    (args (type-constructor-args object ctor-type)))
+               (:li
+                (:code
+                 (:raw
+                  (cond (args
+                         (format nil "(~A~{ ~A~})"
+                                 (html-entities:encode-entities ctor-source-name)
+                                 (mapcar #'coalton/doc/markdown::to-markdown args)))
+                        (t
+                         (html-entities:encode-entities ctor-source-name)))))
+                (when ctor-docstring
+                  (:span :class "docstring" (:br) " - " (html-entities:encode-entities ctor-docstring))))))))))
+    (:raw (doc-html object))
+    (:raw (instances-html object))))
 
 (defmethod write-object-body ((backend html-backend) (object coalton-struct))
   (let ((struct-html

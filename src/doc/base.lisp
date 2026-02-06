@@ -51,6 +51,16 @@
 ;;; symbol and package utilities
 
 (defun exported-symbol-p (symbol package &optional check-package)
-  "T if SYMBOL is an exported symbol, optionally checking that it is a member of PACKAGE."
-  (and (if check-package (equalp (symbol-package symbol) package) t)
-       (eql :external (nth-value 1 (find-symbol (symbol-name symbol) package)))))
+  "T if SYMBOL is an exported symbol from PACKAGE.
+
+If CHECK-PACKAGE is true, additionally require that SYMBOL's home package is PACKAGE.
+
+When CHECK-PACKAGE is false (used for documenting re-exports), we still require that
+SYMBOL is *the* external symbol that PACKAGE resolves for SYMBOL-NAME. This avoids
+matching unrelated symbols from other packages that merely share the same name."
+  (multiple-value-bind (resolved status)
+      (find-symbol (symbol-name symbol) package)
+    (and (eq ':external status)
+         (eq resolved symbol)
+         (or (not check-package)
+             (eq (symbol-package symbol) package)))))
